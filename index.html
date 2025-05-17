@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sprite Sheet Splitter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .panel {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        input, button {
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        input[type="number"] {
+            width: 80px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .preview-area {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .sprite-sheet-container {
+            flex: 1;
+            min-width: 300px;
+            position: relative;
+        }
+        .sprites-container {
+            flex: 1;
+            min-width: 300px;
+            max-height: 600px;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .sprite-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 5px;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            background-color: #f5f5f5;
+        }
+        .sprite-item canvas {
+            max-width: 100%;
+            image-rendering: pixelated;
+        }
+        .sprite-item .sprite-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        #spriteSheetCanvas {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            image-rendering: pixelated;
+        }
+        .grid-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+        .download-all {
+            margin-top: 10px;
+        }
+        .hint {
+            font-size: 14px;
+            color: #666;
+            font-style: italic;
+            margin-top: 5px;
+        }
+        .status {
+            font-weight: bold;
+            margin-top: 10px;
+            color: #27ae60;
+        }
+    </style>
+</head>
+<body>
+    <h1>Sprite Sheet Splitter</h1>
+    <p>Upload a sprite sheet and split it into individual sprites by specifying the dimensions of each sprite.</p>
+    
+    <div class="container">
+        <div class="panel">
+            <div class="controls">
+                <div class="control-group">
+                    <label for="spriteSheetInput">Upload Sprite Sheet:</label>
+                    <input type="file" id="spriteSheetInput" accept="image/*">
+                </div>
+                
+                <div class="control-group">
+                    <label for="spriteWidth">Sprite Width (px):</label>
+                    <input type="number" id="spriteWidth" min="1" value="32">
+                </div>
+                
+                <div class="control-group">
+                    <label for="spriteHeight">Sprite Height (px):</label>
+                    <input type="number" id="spriteHeight" min="1" value="32">
+                </div>
+                
+                <div class="control-group">
+                    <label for="spacing">Spacing (px):</label>
+                    <input type="number" id="spacing" min="0" value="0">
+                    <div class="hint">Space between sprites</div>
+                </div>
+                
+                <div class="control-group">
+                    <label for="padding">Padding (px):</label>
+                    <input type="number" id="padding" min="0" value="0">
+                    <div class="hint">Border inside each sprite</div>
+                </div>
+                
+                <div class="control-group">
+                    <label for="columns">Columns (optional):</label>
+                    <input type="number" id="columns" min="0" value="0">
+                    <div class="hint">Leave at 0 for auto-detection</div>
+                </div>
+                
+                <div class="control-group">
+                    <label>&nbsp;</label>
+                    <button id="splitButton" disabled>Split Sprites</button>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label for="showGrid">
+                    <input type="checkbox" id="showGrid" checked> Show Grid
+                </label>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>Preview</h2>
+            <div class="preview-area">
+                <div class="sprite-sheet-container">
+                    <h3>Sprite Sheet</h3>
+                    <canvas id="spriteSheetCanvas"></canvas>
+                    <canvas id="gridOverlay" class="grid-overlay"></canvas>
+                </div>
+                
+                <div class="sprites-output">
+                    <h3>Individual Sprites</h3>
+                    <div id="spritesContainer" class="sprites-container">
+                        <p>Split sprites will appear here</p>
+                    </div>
+                    <button id="downloadAllButton" class="download-all" disabled>Download All Sprites</button>
+                    <div id="status" class="status"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const spriteSheetInput = document.getElementById('spriteSheetInput');
+        const spriteWidthInput = document.getElementById('spriteWidth');
+        const spriteHeightInput = document.getElementById('spriteHeight');
+        const spacingInput = document.getElementById('spacing');
+        const paddingInput = document.getElementById('padding');
+        const columnsInput = document.getElementById('columns');
+        const showGridCheckbox = document.getElementById('showGrid');
+        const splitButton = document.getElementById('splitButton');
+        const downloadAllButton = document.getElementById('downloadAllButton');
+        const spriteSheetCanvas = document.getElementById('spriteSheetCanvas');
+        const gridOverlay = document.getElementById('gridOverlay');
+        const spritesContainer = document.getElementById('spritesContainer');
+        const statusElement = document.getElementById('status');
+        
+        let spriteSheet = null;
+        let individualSprites = [];
+        
+        // Handle sprite sheet upload
+        spriteSheetInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    spriteSheet = img;
+                    renderSpriteSheet();
+                    splitButton.disabled = false;
+                    showGridCheckbox.checked = true;
+                    drawGrid();
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+        
+        // Update grid when dimensions change
+        [spriteWidthInput, spriteHeightInput, spacingInput, paddingInput, columnsInput].forEach(input => {
+            input.addEventListener('change', drawGrid);
+        });
+        
+        // Toggle grid visibility
+        showGridCheckbox.addEventListener('change', function() {
+            gridOverlay.style.display = this.checked ? 'block' : 'none';
+        });
+        
+        // Split the sprite sheet into individual sprites
+        splitButton.addEventListener('click', splitSpriteSheet);
+        
+        // Download all sprites as ZIP
+        downloadAllButton.addEventListener('click', downloadAllSprites);
+        
+        // Render the sprite sheet on canvas
+        function renderSpriteSheet() {
+            if (!spriteSheet) return;
+            
+            const ctx = spriteSheetCanvas.getContext('2d');
+            spriteSheetCanvas.width = spriteSheet.width;
+            spriteSheetCanvas.height = spriteSheet.height;
+            ctx.clearRect(0, 0, spriteSheetCanvas.width, spriteSheetCanvas.height);
+            ctx.drawImage(spriteSheet, 0, 0);
+            
+            // Also resize the grid overlay
+            gridOverlay.width = spriteSheet.width;
+            gridOverlay.height = spriteSheet.height;
+        }
+        
+        // Draw the grid overlay
+        function drawGrid() {
+            if (!spriteSheet) return;
+            
+            const spriteWidth = parseInt(spriteWidthInput.value) || 32;
+            const spriteHeight = parseInt(spriteHeightInput.value) || 32;
+            const spacing = parseInt(spacingInput.value) || 0;
+            const padding = parseInt(paddingInput.value) || 0;
+            const specifiedColumns = parseInt(columnsInput.value) || 0;
+            
+            const ctx = gridOverlay.getContext('2d');
+            ctx.clearRect(0, 0, gridOverlay.width, gridOverlay.height);
+            
+            // Calculate columns if not specified
+            const columns = specifiedColumns || Math.floor(spriteSheet.width / (spriteWidth + spacing));
+            
+            // Draw grid lines
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+            ctx.lineWidth = 1;
+            
+            // Draw horizontal lines
+            for (let y = 0; y <= spriteSheet.height; y += spriteHeight + spacing) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(spriteSheet.width, y);
+                ctx.stroke();
+            }
+            
+            // Draw vertical lines
+            if (specifiedColumns > 0) {
+                // If columns are specified, draw that many columns evenly spaced
+                for (let x = 0; x <= spriteSheet.width; x += (spriteSheet.width / columns)) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, spriteSheet.height);
+                    ctx.stroke();
+                }
+            } else {
+                // Otherwise draw lines based on sprite width + spacing
+                for (let x = 0; x <= spriteSheet.width; x += spriteWidth + spacing) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, spriteSheet.height);
+                    ctx.stroke();
+                }
+            }
+            
+            // If padding is specified, draw inner rectangles
+            if (padding > 0) {
+                ctx.strokeStyle = 'rgba(0, 0, 255, 0.5)';
+                
+                const rows = Math.floor(spriteSheet.height / (spriteHeight + spacing));
+                
+                for (let row = 0; row < rows; row++) {
+                    for (let col = 0; col < columns; col++) {
+                        const x = col * (spriteWidth + spacing) + padding;
+                        const y = row * (spriteHeight + spacing) + padding;
+                        const innerWidth = spriteWidth - 2 * padding;
+                        const innerHeight = spriteHeight - 2 * padding;
+                        
+                        ctx.strokeRect(x, y, innerWidth, innerHeight);
+                    }
+                }
+            }
+        }
+        
+        // Split the sprite sheet into individual sprites
+        function splitSpriteSheet() {
+            if (!spriteSheet) return;
+            
+            const spriteWidth = parseInt(spriteWidthInput.value) || 32;
+            const spriteHeight = parseInt(spriteHeightInput.value) || 32;
+            const spacing = parseInt(spacingInput.value) || 0;
+            const padding = parseInt(paddingInput.value) || 0;
+            const specifiedColumns = parseInt(columnsInput.value) || 0;
+            
+            // Calculate columns and rows
+            const columns = specifiedColumns || Math.floor(spriteSheet.width / (spriteWidth + spacing));
+            const rows = Math.floor(spriteSheet.height / (spriteHeight + spacing));
+            
+            // Clear previous sprites
+            individualSprites = [];
+            spritesContainer.innerHTML = '';
+            
+            // Create temporary canvas for extraction
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = spriteWidth - 2 * padding;
+            tempCanvas.height = spriteHeight - 2 * padding;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            // Extract each sprite
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < columns; col++) {
+                    const x = col * (spriteWidth + spacing) + padding;
+                    const y = row * (spriteHeight + spacing) + padding;
+                    const effectiveWidth = spriteWidth - 2 * padding;
+                    const effectiveHeight = spriteHeight - 2 * padding;
+                    
+                    // Skip if outside image bounds
+                    if (x + effectiveWidth > spriteSheet.width || y + effectiveHeight > spriteSheet.height) {
+                        continue;
+                    }
+                    
+                    // Extract sprite
+                    tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+                    tempCtx.drawImage(
+                        spriteSheet, 
+                        x, y, effectiveWidth, effectiveHeight,
+                        0, 0, tempCanvas.width, tempCanvas.height
+                    );
+                    
+                    // Create sprite data
+                    const spriteData = {
+                        row,
+                        col,
+                        dataURL: tempCanvas.toDataURL('image/png'),
+                        width: effectiveWidth,
+                        height: effectiveHeight
+                    };
+                    
+                    individualSprites.push(spriteData);
+                    
+                    // Create sprite preview
+                    createSpritePreview(spriteData, row, col);
+                }
+            }
+            
+            // Enable download button
+            downloadAllButton.disabled = individualSprites.length === 0;
+            
+            // Show status
+            statusElement.textContent = `${individualSprites.length} sprites extracted`;
+        }
+        
+        // Create and display a preview for a single sprite
+        function createSpritePreview(spriteData, row, col) {
+            const spriteDiv = document.createElement('div');
+            spriteDiv.className = 'sprite-item';
+            
+            // Create canvas for sprite
+            const canvas = document.createElement('canvas');
+            canvas.width = spriteData.width;
+            canvas.height = spriteData.height;
+            const ctx = canvas.getContext('2d');
+            
+            // Draw sprite
+            const img = new Image();
+            img.onload = function() {
+                ctx.drawImage(img, 0, 0);
+            };
+            img.src = spriteData.dataURL;
+            
+            // Add sprite index label
+            const label = document.createElement('div');
+            label.className = 'sprite-label';
+            label.textContent = `Row ${row}, Col ${col}`;
+            
+            // Add download button for individual sprite
+            const downloadBtn = document.createElement('button');
+            downloadBtn.textContent = 'Download';
+            downloadBtn.style.fontSize = '12px';
+            downloadBtn.style.padding = '3px 6px';
+            downloadBtn.style.marginTop = '5px';
+            downloadBtn.addEventListener('click', () => {
+                downloadSprite(spriteData, row, col);
+            });
+            
+            spriteDiv.appendChild(canvas);
+            spriteDiv.appendChild(label);
+            spriteDiv.appendChild(downloadBtn);
+            spritesContainer.appendChild(spriteDiv);
+        }
+        
+        // Download a single sprite
+        function downloadSprite(spriteData, row, col) {
+            const link = document.createElement('a');
+            link.href = spriteData.dataURL;
+            link.download = `sprite_r${row}_c${col}.png`;
+            link.click();
+        }
+        
+        // Download all sprites as individual files
+        function downloadAllSprites() {
+            if (individualSprites.length === 0) return;
+            
+            // We'll use a timeout to give the browser a chance to handle each download
+            let i = 0;
+            function downloadNext() {
+                if (i < individualSprites.length) {
+                    const sprite = individualSprites[i];
+                    downloadSprite(sprite, sprite.row, sprite.col);
+                    i++;
+                    // Schedule the next download
+                    setTimeout(downloadNext, 100);
+                } else {
+                    statusElement.textContent = 'All sprites downloaded!';
+                }
+            }
+            
+            statusElement.textContent = 'Downloading sprites...';
+            downloadNext();
+        }
+    </script>
+</body>
+</html>

@@ -132,6 +132,54 @@
             margin-top: 10px;
             color: #27ae60;
         }
+        /* Add to your existing CSS */
+.animation-panel {
+    margin-top: 20px;
+}
+
+#animationPreview {
+    margin-top: 10px;
+    border: 1px solid #ddd;
+    background: #fff;
+    image-rendering: pixelated;
+    max-width: 100%;
+    height: auto;
+}
+
+.color-palette {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 5px;
+    margin-top: 10px;
+    padding: 10px;
+    background: #fff;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+.color-swatch {
+    width: 30px;
+    height: 30px;
+    border: 1px solid #ddd;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.transform-tools {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.color-tools {
+    margin-top: 20px;
+}
+
+.selected-color {
+    border: 2px solid #3498db;
+}
+        
     </style>
 </head>
 <body>
@@ -144,6 +192,44 @@
                 <div class="control-group">
                     <label for="spriteSheetInput">Upload Sprite Sheet:</label>
                     <input type="file" id="spriteSheetInput" accept="image/*">
+                    <!-- Add after the existing preview panel -->
+<div class="panel animation-panel">
+    <h2>Animation Preview</h2>
+    <div class="controls">
+        <div class="control-group">
+            <label for="frameStart">Start Frame:</label>
+            <input type="number" id="frameStart" min="0" value="0">
+        </div>
+        <div class="control-group">
+            <label for="frameEnd">End Frame:</label>
+            <input type="number" id="frameEnd" min="0" value="0">
+        </div>
+        <div class="control-group">
+            <label for="fps">FPS:</label>
+            <input type="number" id="fps" min="1" value="12">
+        </div>
+        <button id="previewAnimation">Preview Animation</button>
+        <button id="stopAnimation">Stop</button>
+    </div>
+    <canvas id="animationPreview"></canvas>
+</div>
+
+<div class="panel tools-panel">
+    <h2>Sprite Tools</h2>
+    <div class="transform-tools">
+        <button id="flipH">Flip Horizontal</button>
+        <button id="flipV">Flip Vertical</button>
+        <button id="rotate90">Rotate 90°</button>
+        <button id="rotate180">Rotate 180°</button>
+        <button id="rotate270">Rotate 270°</button>
+    </div>
+    
+    <div class="color-tools">
+        <h3>Color Palette</h3>
+        <button id="extractPalette">Extract Palette</button>
+        <div id="colorPalette" class="color-palette"></div>
+    </div>
+</div>  
                 </div>
                 
                 <div class="control-group">
@@ -225,6 +311,174 @@
         
         let spriteSheet = null;
         let individualSprites = [];
+        // Add these class definitions at the top of your script
+class PaletteManager {
+    constructor() {
+        this.colors = [];
+        this.maxColors = 32;
+        this.selectedColor = null;
+    }
+    
+    extractPalette(imageData) {
+        const colorMap = new Map();
+        
+        for(let i = 0; i < imageData.data.length; i += 4) {
+            const r = imageData.data[i];
+            const g = imageData.data[i + 1];
+            const b = imageData.data[i + 2];
+            const a = imageData.data[i + 3];
+            const colorKey = `rgba(${r},${g},${b},${a})`;
+            
+            colorMap.set(colorKey, (colorMap.get(colorKey) || 0) + 1);
+        }
+        
+        // Sort colors by frequency
+        this.colors = Array.from(colorMap.entries())
+            .sort((a, b) => b[1] - a[1])
+            .map(([color]) => color)
+            .slice(0, this.maxColors);
+            
+        return this.colors;
+    }
+    
+    renderPalette() {
+        const palette = document.getElementById('colorPalette');
+        palette.innerHTML = '';
+        
+        this.colors.forEach(color => {
+            const swatch = document.createElement('div');
+            swatch.className = 'color-swatch';
+            swatch.style.backgroundColor = color;
+            swatch.addEventListener('click', () => this.selectColor(color, swatch));
+            palette.appendChild(swatch);
+        });
+    }
+    
+    selectColor(color, swatch) {
+        this.selectedColor = color;
+        document.querySelectorAll('.color-swatch').forEach(s => 
+            s.classList.remove('selected-color'));
+        swatch.classList.add('selected-color');
+    }
+}
+
+class AnimationPreview {
+    constructor(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.frames = [];
+        this.currentFrame = 0;
+        this.isPlaying = false;
+        this.fps = 12;
+        this.animationId = null;
+    }
+    
+    setFrames(frames) {
+        this.frames = frames;
+        this.currentFrame = 0;
+        this.canvas.width = frames[0].width;
+        this.canvas.height = frames[0].height;
+    }
+    
+    play() {
+        if (this.frames.length === 0) return;
+        
+        this.isPlaying = true;
+        let lastTime = 0;
+        const frameInterval = 1000 / this.fps;
+        
+        const animate = (timestamp) => {
+            if (!this.isPlaying) return;
+            
+            if (timestamp - lastTime >= frameInterval) {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.ctx.drawImage(this.frames[this.currentFrame], 0, 0);
+                
+                this.currentFrame = (this.currentFrame + 1) % this.frames.length;
+                lastTime = timestamp;
+            }
+            
+            this.animationId = requestAnimationFrame(animate);
+        };
+        
+        this.animationId = requestAnimationFrame(animate);
+    }
+    
+    stop() {
+        this.isPlaying = false;
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+        }
+        this.currentFrame = 0;
+        if (this.frames.length > 0) {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.drawImage(this.frames[0], 0, 0);
+        }
+    }
+}
+
+// Initialize new components
+const paletteManager = new PaletteManager();
+const animationPreview = new AnimationPreview(document.getElementById('animationPreview'));
+
+// Add event listeners for new functionality
+document.getElementById('extractPalette').addEventListener('click', () => {
+    if (!spriteSheet) return;
+    
+    const ctx = spriteSheetCanvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, spriteSheetCanvas.width, spriteSheetCanvas.height);
+    paletteManager.extractPalette(imageData);
+    paletteManager.renderPalette();
+});
+
+document.getElementById('previewAnimation').addEventListener('click', () => {
+    const startFrame = parseInt(document.getElementById('frameStart').value);
+    const endFrame = parseInt(document.getElementById('frameEnd').value);
+    const fps = parseInt(document.getElementById('fps').value);
+    
+    if (startFrame >= 0 && endFrame < individualSprites.length && startFrame <= endFrame) {
+        const frames = individualSprites
+            .slice(startFrame, endFrame + 1)
+            .map(sprite => {
+                const img = new Image();
+                img.src = sprite.dataURL;
+                return img;
+            });
+            
+        animationPreview.fps = fps;
+        animationPreview.setFrames(frames);
+        animationPreview.play();
+    }
+});
+
+document.getElementById('stopAnimation').addEventListener('click', () => {
+    animationPreview.stop();
+});
+
+// Transform tools event listeners
+document.getElementById('flipH').addEventListener('click', () => {
+    if (!spriteSheet) return;
+    const flipped = SpriteTransformer.flip(spriteSheetCanvas, true);
+    spriteSheetCanvas.getContext('2d').drawImage(flipped, 0, 0);
+    drawGrid();
+});
+
+document.getElementById('flipV').addEventListener('click', () => {
+    if (!spriteSheet) return;
+    const flipped = SpriteTransformer.flip(spriteSheetCanvas, false);
+    spriteSheetCanvas.getContext('2d').drawImage(flipped, 0, 0);
+    drawGrid();
+});
+
+['90', '180', '270'].forEach(degrees => {
+    document.getElementById(`rotate${degrees}`).addEventListener('click', () => {
+        if (!spriteSheet) return;
+        const rotated = SpriteTransformer.rotate(spriteSheetCanvas, parseInt(degrees));
+        spriteSheetCanvas.getContext('2d').drawImage(rotated, 0, 0);
+        drawGrid();
+    });
+});
+        
         
         // Handle sprite sheet upload
         spriteSheetInput.addEventListener('change', function(e) {
